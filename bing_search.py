@@ -5,22 +5,33 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from unicodedata import name
-import time, json
+import time, json, os
 from collections import namedtuple
 
 class BingSearchScript:
     def __init__(self):
         options = Options()
-        options.add_argument('--headless')
+        # options.add_argument('--headless')
         self.driver = webdriver.Chrome(options)
         self.setting = namedtuple('Setting', 'email password')(**json.loads(open(r'./setting.json', 'r').read()))
+        self.cookies = self._load_cookies_json()
+
+    def _load_cookies_json(self):
+        if os.path.exists('bing_cookies.json'):
+            return json.load(open('bing_cookies.json', 'r'))
+        else:
+            return None
+
+    def _save_cookies_json(self, cookies):
+        json.dump(cookies, open('bing_cookies.json', 'w'))
+        return cookies
 
     def _find_element_wait(self, by_type, name):
         # WebDriverWait(self.driver, 10).until(EC.find_element(by_type, name))
         time.sleep(1)
         return self.driver.find_element(by_type, name)
 
-    def _login(self):
+    def _login_account(self):
         url = 'https://cn.bing.com/?homepage'
         self.driver.get(url)
         login_button = self._find_element_wait(By.ID, 'id_s')
@@ -38,8 +49,14 @@ class BingSearchScript:
         check_button = self._find_element_wait(By.ID, 'idSIButton9')
         check_button.click()
         print('登录成功！')
+        self.cookies = self._save_cookies_json(self.driver.get_cookies())
 
     def _search(self):
+        url = 'https://cn.bing.com/search'
+        self.driver.get(url)
+        for cookie in self.cookies:
+            self.driver.add_cookie(cookie)
+        self.driver.refresh()
         search_strs = [name(chr(i), '') for i in range(48, 48+30)] * 3
         # inputs_search_item = self._find_element_wait(By.ID, 'sb_form_q')
         # search_button = self._find_element_wait(By.CSS_SELECTOR, '#search_icon > svg')
@@ -57,7 +74,8 @@ class BingSearchScript:
 
 
     def run(self):
-        self._login()
+        if self.cookies is None:
+            self._login_account()
         self._search()
         time.sleep(10)
         self.driver.close()
